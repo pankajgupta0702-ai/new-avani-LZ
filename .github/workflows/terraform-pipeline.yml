@@ -1,0 +1,130 @@
+name: "Terraform CI/CD Pipeline"
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # ==========================================
+  # STAGE 1: Security & Linting Scan
+  # ==========================================
+  scan:
+    name: "TFSec & TFLint Scan"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.0"
+
+      # Setup and Run TFLint
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Init TFLint
+        run: tflint --init
+        working-directory: ./Environment/preprod
+
+      - name: Run TFLint
+        run: tflint
+        working-directory: ./Environment/preprod
+
+      # Run TFSec
+      - name: Run TFSec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: ./Environment/preprod
+
+  # ==========================================
+  # STAGE 2: Terraform Plan (Login, Fmt, Validate, Plan)
+  # ==========================================
+  plan:
+    name: "Terraform Validate & Plan"
+    needs: scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Azure Login Step using your Service Principal credentials
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
+        working-directory: ./Environment/preprod
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./Environment/preprod
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ./Environment/preprod
+
+      - name: Terraform Plan
+        run: terraform plan -no-color
+        working-directory: ./Environment/preprod
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+  # ==========================================
+  # STAGE 3: Terraform Apply (Auto Approve on Main Branch)
+  # ==========================================
+  apply:
+    name: "Terraform Apply"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [scan, plan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Azure Login Step for Apply
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./Environment/preprod
+
+      - name: Terraform Apply (Auto Approve)
+        run: terraform apply -auto-approve
+        working-directory: ./Environment/preprod
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
