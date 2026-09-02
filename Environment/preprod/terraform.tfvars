@@ -8,11 +8,7 @@ resource_group = {
     location = "West india"
   }
    rg3 = {
-    name     = "ravi-rg-preprod"
-    location = "West india"
-  }
-   rg4 = {
-    name     = "pankaj-rg-preprod"
+    name     = "betu-rg-preprod"
     location = "West india"
   }
 }
