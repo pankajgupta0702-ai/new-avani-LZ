@@ -19,6 +19,10 @@ resource_group = {
     name     = "ganja-rg-preprod"
     location = "West india"
   }
+   rg6 = {
+    name     = "taklajhakla-rg-preprod"
+    location = "West india"
+  }
 }
 
 virtual_network = {
