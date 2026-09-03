@@ -16,7 +16,7 @@ resource_group = {
     location = "West india"
   }
   rg5 = {
-    name     = "takla-rg-preprod"
+    name     = "ganja-rg-preprod"
     location = "West india"
   }
 }
